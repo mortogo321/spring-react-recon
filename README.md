@@ -174,9 +174,13 @@ it decided.
 
 ```bash
 ./gradlew build                      # spotless, ArchUnit, unit, integration, coverage floor
+./gradlew :backend:recon-api:integrationTest   # against real Oracle and MySQL (needs Docker)
 cd frontend && bun run test          # component and reducer tests
 cd frontend && bunx playwright test  # the journey, in a browser, against a running API
 ```
+
+Tests that need a Docker daemon are tagged `docker` and excluded from `test`, so a laptop without
+one still gets a green `build`.
 
 | Layer                     | What it proves                                                  |
 |---------------------------|-----------------------------------------------------------------|
@@ -184,6 +188,7 @@ cd frontend && bunx playwright test  # the journey, in a browser, against a runn
 | 8 ArchUnit rules          | the dependency direction and the conventions Gradle can't see    |
 | 9 API contract tests      | status codes, problem shapes, idempotency, roles on the wire     |
 | 5 `@SpringBatchTest` tests| the job's partitioning, restart and skip behaviour               |
+| 2 Testcontainers tests    | the same reconciliation on real Oracle and MySQL, and the grants |
 | 28 console tests          | reducers, capability gating, the exception drawer                |
 | 6 Playwright specs        | sign-in, launch, investigate, approve — with two real sessions   |
 
@@ -191,8 +196,15 @@ The e2e suite is the only place segregation of duties is proved across every lay
 layer enforces it in its own way — a `@PreAuthorize` expression, a service check, a disabled button —
 and the only way to know all three agree is to walk one break through them with two different users.
 
-CI runs the backend and the console in parallel, then the e2e suite against a freshly built API on
-the `local` profile.
+The H2 legacy database runs in Oracle compatibility mode against the same DDL and the same mappers,
+which keeps the fast tests honest about the dialect. What it cannot prove is that the hand-written
+SQL parses on a real Oracle, that the type handlers read Oracle's own `NUMBER` and `DATE`
+representations, or that the read-only account can reach the owner's tables through its synonyms
+and still cannot write to them. That is what the Testcontainers pair is for, seeded by the very
+script compose mounts — so the account split under test is the arrangement that ships.
+
+CI runs the backend and the console in parallel, the real-database job alongside them, and the e2e
+suite against a freshly built API on the `local` profile.
 
 ---
 

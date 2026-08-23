@@ -60,6 +60,38 @@ jobs:
             backend/*/build/reports/jacoco
           retention-days: 7
 
+  integration:
+    name: Integration — real Oracle and MySQL
+    runs-on: ubuntu-latest
+    # Oracle Free is a large image and a slow start; this is the long pole of the pipeline and is
+    # deliberately its own job so the fast feedback from `backend` is not held behind it.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # The tag `docker` marks the tests that need a daemon; `test` excludes them and this task is
+      # the only thing that includes them. Runners ship with Docker, so nothing else is needed.
+      - run: ./gradlew :backend:recon-api:integrationTest --stacktrace
+
+      - name: Publish integration report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-results
+          path: |
+            backend/recon-api/build/reports/tests/integrationTest
+            backend/recon-api/build/test-results/integrationTest
+          retention-days: 7
+
   frontend:
     name: Frontend — typecheck, test, build
     runs-on: ubuntu-latest

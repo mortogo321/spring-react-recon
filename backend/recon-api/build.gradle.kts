@@ -42,6 +42,7 @@ dependencies {
     testImplementation(libs.boot.testcontainers)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.mysql)
+    testImplementation(libs.testcontainers.oracle)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -122,7 +122,11 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("ETag", "X-Correlation-Id", "X-Total-Count"));
+        // Only what is actually sent. ETag and X-Total-Count were listed here once and never
+        // emitted by anything: a browser cannot read a header the server does not set, so
+        // advertising them only misleads whoever reads this next. Paged reads carry their
+        // totals in the body (totalElements/totalPages), which is what the console uses.
+        configuration.setExposedHeaders(List.of("X-Correlation-Id"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
