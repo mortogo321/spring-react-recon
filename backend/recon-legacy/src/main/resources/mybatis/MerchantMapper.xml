@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="io.github.mortogo321.recon.legacy.mapper.MerchantMapper">
+
+    <sql id="merchantColumns">
+        m.MERCHANT_ID          AS "merchantId",
+        m.LEGAL_NAME           AS "legalName",
+        m.MCC                  AS "mcc",
+        m.SETTLEMENT_CURRENCY  AS "settlementCurrency",
+        m.ACQUIRER_ID          AS "acquirerId",
+        m.ONBOARDED_ON         AS "onboardedOn",
+        CASE m.ACTIVE_FLAG WHEN 'Y' THEN 1 ELSE 0 END AS "active"
+    </sql>
+
+    <select id="findById" resultType="io.github.mortogo321.recon.legacy.dto.MerchantRow">
+        SELECT <include refid="merchantColumns"/>
+          FROM MERCHANT_MASTER m
+         WHERE m.MERCHANT_ID = #{merchantId}
+    </select>
+
+    <!-- foreach keeps this a single round trip for the batch enrichment step. -->
+    <select id="findAllById" resultType="io.github.mortogo321.recon.legacy.dto.MerchantRow">
+        SELECT <include refid="merchantColumns"/>
+          FROM MERCHANT_MASTER m
+         WHERE m.MERCHANT_ID IN
+        <foreach item="id" collection="merchantIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="search" resultType="io.github.mortogo321.recon.legacy.dto.MerchantRow">
+        SELECT <include refid="merchantColumns"/>
+          FROM MERCHANT_MASTER m
+        <where>
+            <if test="nameLike != null and nameLike != ''">
+                AND UPPER(m.LEGAL_NAME) LIKE '%' || UPPER(#{nameLike}) || '%'
+            </if>
+            <if test="mcc != null and mcc != ''">
+                AND m.MCC = #{mcc}
+            </if>
+            <if test="acquirerId != null and acquirerId != ''">
+                AND m.ACQUIRER_ID = #{acquirerId}
+            </if>
+            <if test="activeOnly">
+                AND m.ACTIVE_FLAG = 'Y'
+            </if>
+        </where>
+         ORDER BY m.LEGAL_NAME
+         FETCH FIRST #{limit} ROWS ONLY
+    </select>
+
+</mapper>

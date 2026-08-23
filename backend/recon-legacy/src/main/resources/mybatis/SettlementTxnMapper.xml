@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  Legacy Oracle staging table. We own none of this schema, so every statement is explicit about
+  the columns it needs and never uses SELECT *.
+
+  Portability note: the SQL below is written against Oracle 12c+ but deliberately restricted to
+  constructs H2's Oracle compatibility mode also understands, so the whole reconciliation runs
+  locally with no container. Anything Oracle-only is isolated in a <databaseId> variant.
+-->
+<mapper namespace="io.github.mortogo321.recon.legacy.mapper.SettlementTxnMapper">
+
+    <resultMap id="settlementTxnRow" type="SettlementTxnRow">
+        <id     property="stgId"          column="STG_ID"/>
+        <result property="txnId"          column="TXN_ID"/>
+        <result property="merchantId"     column="MERCHANT_ID"/>
+        <result property="externalRef"    column="EXTERNAL_REF"/>
+        <result property="grossAmount"    column="GROSS_AMOUNT"    jdbcType="DECIMAL"/>
+        <result property="feeAmount"      column="FEE_AMOUNT"      jdbcType="DECIMAL"/>
+        <result property="currency"       column="CURRENCY_CODE"   javaType="java.util.Currency"/>
+        <result property="settledOn"      column="SETTLED_ON"      jdbcType="DATE"/>
+        <result property="status"         column="STATUS_CODE"
+                javaType="io.github.mortogo321.recon.domain.model.SettlementStatus"/>
+        <result property="acquirerBatchId" column="ACQUIRER_BATCH_ID"/>
+    </resultMap>
+
+    <sql id="txnColumns">
+        t.STG_ID,
+        t.TXN_ID,
+        t.MERCHANT_ID,
+        t.EXTERNAL_REF,
+        t.GROSS_AMOUNT,
+        t.FEE_AMOUNT,
+        t.CURRENCY_CODE,
+        t.SETTLED_ON,
+        t.STATUS_CODE,
+        t.ACQUIRER_BATCH_ID
+    </sql>
+
+    <select id="countBySettlementDate" resultType="long">
+        SELECT COUNT(*)
+          FROM STG_SETTLEMENT_TXN t
+         WHERE t.SETTLED_ON = #{settledOn,jdbcType=DATE}
+    </select>
+
+    <!--
+      Row counts per merchant drive shard sizing. Ordering by count descending lets the
+      partitioner pack shards largest-first, which keeps the slowest worker's tail short.
+    -->
+    <select id="selectMerchantShards" resultType="io.github.mortogo321.recon.legacy.dto.MerchantShard">
+        SELECT t.MERCHANT_ID AS "merchantId",
+               COUNT(*)      AS "rowCount"
+          FROM STG_SETTLEMENT_TXN t
+         WHERE t.SETTLED_ON = #{settledOn,jdbcType=DATE}
+         GROUP BY t.MERCHANT_ID
+         ORDER BY COUNT(*) DESC, t.MERCHANT_ID ASC
+    </select>
+
+    <!-- fetchSize is what makes this a genuine server-side cursor rather than a buffered read. -->
+    <select id="streamByMerchant" resultMap="settlementTxnRow" fetchSize="1000" resultSetType="FORWARD_ONLY">
+        SELECT <include refid="txnColumns"/>
+          FROM STG_SETTLEMENT_TXN t
+         WHERE t.SETTLED_ON = #{settledOn,jdbcType=DATE}
+           AND t.MERCHANT_ID = #{merchantId}
+         ORDER BY t.MERCHANT_ID, t.STG_ID
+    </select>
+
+    <!-- Keyset pagination: seek past the last id instead of OFFSET, so page N costs the same as page 1. -->
+    <select id="selectPageAfter" resultMap="settlementTxnRow">
+        SELECT <include refid="txnColumns"/>
+          FROM STG_SETTLEMENT_TXN t
+        <where>
+            t.SETTLED_ON = #{settledOn,jdbcType=DATE}
+            <if test="merchantId != null and merchantId != ''">
+                AND t.MERCHANT_ID = #{merchantId}
+            </if>
+            <if test="afterStgId != null">
+                AND t.STG_ID &gt; #{afterStgId}
+            </if>
+        </where>
+         ORDER BY t.STG_ID
+         FETCH FIRST #{limit} ROWS ONLY
+    </select>
+
+    <!--
+      Duplicate detection in a single pass. COUNT(*) OVER (PARTITION BY ...) tags every row in a
+      repeated group, so the caller gets all copies rather than just the extras — which is what an
+      operator needs in order to decide which one to keep.
+    -->
+    <select id="selectDuplicateCandidates" resultMap="settlementTxnRow">
+        SELECT <include refid="txnColumns"/>
+          FROM (
+                SELECT t.*,
+                       COUNT(*) OVER (
+                           PARTITION BY t.MERCHANT_ID, t.EXTERNAL_REF, t.GROSS_AMOUNT
+                       ) AS DUP_COUNT
+                  FROM STG_SETTLEMENT_TXN t
+                 WHERE t.SETTLED_ON = #{settledOn,jdbcType=DATE}
+               ) t
+         WHERE t.DUP_COUNT > 1
+         ORDER BY t.MERCHANT_ID, t.EXTERNAL_REF, t.STG_ID
+    </select>
+
+</mapper>

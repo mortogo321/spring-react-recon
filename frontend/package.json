@@ -1,0 +1,48 @@
+{
+  "name": "recon-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --build && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@mui/icons-material": "9.3.1",
+    "@mui/material": "9.3.1",
+    "@mui/x-charts": "9.12.0",
+    "@mui/x-data-grid": "9.12.0",
+    "@mui/x-date-pickers": "9.12.0",
+    "@reduxjs/toolkit": "2.12.0",
+    "dayjs": "1.11.23",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-redux": "9.3.0",
+    "react-router": "8.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.1.0",
+    "@vitest/coverage-v8": "4.1.11",
+    "jsdom": "30.0.1",
+    "msw": "2.15.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}

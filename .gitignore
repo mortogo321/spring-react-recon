@@ -1,0 +1,36 @@
+# --- Gradle / JVM ---------------------------------------------------------
+.gradle/
+build/
+!buildSrc/src/**/build/
+buildSrc/build/
+buildSrc/.gradle/
+buildSrc/.kotlin/
+bin/
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# --- Node / bun -----------------------------------------------------------
+node_modules/
+dist/
+*.tsbuildinfo
+
+# --- Playwright -----------------------------------------------------------
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# --- Local configuration --------------------------------------------------
+# .env.example is committed; a real .env is not.
+.env
+.env.local
+.env.*.local
+
+# --- Editors and tooling --------------------------------------------------
+.idea/
+.vscode/
+*.iml
+.claude/
+.DS_Store

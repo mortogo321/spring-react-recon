@@ -1,0 +1,21 @@
+# Everything the build does not need. Keeping the context small is most of the build-speed story.
+.git
+.gitignore
+.claude
+**/build/
+**/.gradle/
+.gradle/
+buildSrc/build/
+buildSrc/.gradle/
+**/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+**/*.log
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+*.iml
+.DS_Store

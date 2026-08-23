@@ -1,0 +1,73 @@
+# Single source of truth for every external version in the build.
+# Anything Spring Boot already manages is intentionally left unpinned so the BOM wins;
+# the few entries below that duplicate a managed dependency are deliberate upgrades.
+[versions]
+java                 = "26"
+springBoot           = "4.1.1"
+mybatisSpringBoot    = "4.1.0"
+springdoc            = "3.1.0"
+ojdbc                = "23.26.3.0.0"
+mysql                = "26.7.0"   # ahead of Boot-managed 9.7.0
+flyway               = "13.3.0"   # ahead of Boot-managed 12.4.0
+archunit             = "1.5.0"
+testcontainers       = "2.0.5"   # not managed by the Boot 4 BOM, so pinned here
+spotless             = "8.10.0"
+versionsPlugin       = "0.53.0"
+
+[libraries]
+# --- platforms -------------------------------------------------------------
+spring-boot-bom      = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+
+# --- spring starters (versions come from the BOM) -------------------------
+boot-web             = { module = "org.springframework.boot:spring-boot-starter-web" }
+boot-webmvc          = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
+boot-validation      = { module = "org.springframework.boot:spring-boot-starter-validation" }
+boot-data-jpa        = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+boot-jdbc            = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+boot-batch           = { module = "org.springframework.boot:spring-boot-starter-batch" }
+boot-batch-jdbc      = { module = "org.springframework.boot:spring-boot-starter-batch-jdbc" }
+boot-security        = { module = "org.springframework.boot:spring-boot-starter-security" }
+boot-oauth2-rs       = { module = "org.springframework.boot:spring-boot-starter-oauth2-resource-server" }
+boot-actuator        = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+boot-cache           = { module = "org.springframework.boot:spring-boot-starter-cache" }
+boot-aspectj         = { module = "org.springframework.boot:spring-boot-starter-aspectj" }
+boot-flyway          = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+boot-json            = { module = "org.springframework.boot:spring-boot-starter-json" }
+boot-test            = { module = "org.springframework.boot:spring-boot-starter-test" }
+# Boot 4 split the test slices out of spring-boot-test-autoconfigure into per-technology modules:
+# @AutoConfigureMockMvc and @WebMvcTest now live here, under o.s.boot.webmvc.test.autoconfigure.
+boot-webmvc-test     = { module = "org.springframework.boot:spring-boot-webmvc-test" }
+boot-testcontainers  = { module = "org.springframework.boot:spring-boot-testcontainers" }
+boot-configproc      = { module = "org.springframework.boot:spring-boot-configuration-processor" }
+
+spring-batch-test    = { module = "org.springframework.batch:spring-batch-test" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+
+micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
+caffeine              = { module = "com.github.ben-manes.caffeine:caffeine" }
+
+# --- persistence ---------------------------------------------------------
+mybatis-starter      = { module = "org.mybatis.spring.boot:mybatis-spring-boot-starter", version.ref = "mybatisSpringBoot" }
+mybatis-test         = { module = "org.mybatis.spring.boot:mybatis-spring-boot-starter-test", version.ref = "mybatisSpringBoot" }
+ojdbc                = { module = "com.oracle.database.jdbc:ojdbc17", version.ref = "ojdbc" }
+mysql                = { module = "com.mysql:mysql-connector-j", version.ref = "mysql" }
+flyway-core          = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-mysql         = { module = "org.flywaydb:flyway-mysql", version.ref = "flyway" }
+h2                   = { module = "com.h2database:h2" }
+
+# --- docs / testing ------------------------------------------------------
+springdoc            = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+archunit             = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+# Testcontainers 2.x prefixes every artifact id with "testcontainers-".
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
+testcontainers-mysql = { module = "org.testcontainers:testcontainers-mysql", version.ref = "testcontainers" }
+testcontainers-oracle = { module = "org.testcontainers:testcontainers-oracle-free", version.ref = "testcontainers" }
+
+[bundles]
+persistence-oracle = ["mybatis-starter", "ojdbc"]
+observability      = ["boot-actuator", "micrometer-prometheus"]
+
+[plugins]
+spring-boot   = { id = "org.springframework.boot",   version.ref = "springBoot" }
+spotless      = { id = "com.diffplug.spotless",      version.ref = "spotless" }
+versions      = { id = "com.github.ben-manes.versions", version.ref = "versionsPlugin" }

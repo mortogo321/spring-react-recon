@@ -1,0 +1,202 @@
+# Shared configuration. Everything environment-specific lives in a profile:
+#
+#   local  - two in-memory H2 databases (one in Oracle mode standing in for the legacy system).
+#            Runs with no Docker daemon and no containers: ./gradlew :backend:recon-api:bootRun
+#   docker - MySQL 9 + Oracle Free, as wired by docker-compose.yml.
+#
+# No credential is hard-coded: every one reads an environment variable with a demo-safe default,
+# so the same image runs locally and in a deployment without a rebuild.
+
+spring:
+  application:
+    name: recon-api
+  profiles:
+    default: local
+
+  # Both the HTTP threads and the batch partition workers spend their time blocked on two
+  # databases. That is exactly the workload virtual threads exist for, and it removes the need to
+  # guess a pool size.
+  threads:
+    virtual:
+      enabled: true
+
+  mvc:
+    # ApiExceptionHandler owns the error format; Boot's ProblemDetail default would compete with it.
+    problemdetails:
+      enabled: false
+
+  # Jackson 3: the date/time switches moved out of SerializationFeature into DateTimeFeature,
+  # which Boot binds under `datatype.datetime`. Setting them under `serialization` fails to bind.
+  jackson:
+    default-property-inclusion: non_null
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
+        write-durations-as-timestamps: false
+    serialization:
+      indent-output: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  datasource:
+    hikari:
+      pool-name: recon-primary
+      maximum-pool-size: 16
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 1740000        # under the usual 30-minute server-side idle cut
+      leak-detection-threshold: 60000
+
+  jpa:
+    open-in-view: false            # a lazy load from a controller is a bug, not a convenience
+    hibernate:
+      ddl-auto: none               # Flyway owns the schema; see V1__recon_schema.sql
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 100
+          time_zone: UTC
+        order_inserts: true         # required for JDBC batching to actually group
+        order_updates: true
+        query:
+          in_clause_parameter_padding: true   # stops one plan per IN-list length
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 500
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true           # never, on any environment reachable from this config
+    validate-on-migrate: true
+
+  batch:
+    job:
+      enabled: false               # runs start from POST /api/runs, never on startup
+    jdbc:
+      table-prefix: BATCH_
+
+  transaction:
+    default-timeout: 60s
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful               # in-flight requests finish; the job keeps its restart point
+  error:
+    whitelabel:
+      enabled: false
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 2KB
+  tomcat:
+    threads:
+      max: 64                      # small on purpose: the work happens on virtual threads
+    max-http-response-header-size: 16KB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      roles: ADMIN
+      probes:
+        enabled: true
+      group:
+        # Ready means both databases answer and the event outbox is draining - an instance whose
+        # downstream notifications are piling up should stop taking new work.
+        readiness:
+          include: readinessState,db,outbox
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  # CorrelationIdFilter puts this on the MDC for every request; it also travels into batch threads.
+  pattern:
+    correlation: "[${spring.application.name:},%X{correlationId:-}] "
+  level:
+    root: INFO
+    io.github.mortogo321.recon: INFO
+    recon.outbox: INFO
+    org.springframework.batch.core.job: INFO
+    org.springframework.batch.core.step: INFO
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+recon:
+  batch:
+    chunk-size: ${RECON_CHUNK_SIZE:500}
+    grid-size: ${RECON_GRID_SIZE:8}          # shards, not threads: merchants are packed into these
+    worker-concurrency: ${RECON_WORKER_CONCURRENCY:4}
+    reader-page-size: 2000
+    skip-limit: 100                          # a poison row must not fail a nightly run
+    retry-limit: 3
+    retry-initial-delay: 250ms
+    retry-max-delay: 5s
+    reporting-currency: THB
+    skip-completed-runs: true                # re-triggering a finished date is a no-op, not a rerun
+
+  # Business tolerances are configuration, not code: a scheme changes its rounding and someone has
+  # to widen the allowance today, without a release. Allowance is max(absolute, amount * bps/10000).
+  tolerance:
+    profiles:
+      default:
+        currency: THB
+        absolute: 0.50
+        bps: 10
+      strict:
+        currency: THB
+        absolute: 0.00
+        bps: 0
+      relaxed:
+        currency: THB
+        absolute: 50.00
+        bps: 100
+
+  outbox:
+    dispatch-interval: PT5S
+    purge-cron: "0 15 3 * * *"
+
+  security:
+    # Only the browser-to-API hop needs this, and only when the two are on different origins: the
+    # Vite dev server on 5173 and the `vite preview` build the e2e suite drives on 4173. Behind the
+    # compose reverse proxy the console is same-origin, so a deployment overrides this with its own
+    # origin — or with an empty list, which turns cross-origin access off entirely.
+    cors:
+      allowed-origins: ${RECON_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
+
+  auth:
+    issuer: recon-console
+    token-ttl-minutes: ${RECON_TOKEN_TTL_MINUTES:60}
+    # Three users, three roles, because the segregation of duties is the point: whoever works a
+    # break cannot approve it, and neither can operate the job. {noop} keeps the demo readable;
+    # a real deployment drops this block and points the resource server at its own JWKS.
+    users:
+      operator:
+        password: "{noop}${RECON_OPERATOR_PASSWORD:operator}"
+        display-name: Ops Analyst
+        roles: [ROLE_OPERATOR]
+      approver:
+        password: "{noop}${RECON_APPROVER_PASSWORD:approver}"
+        display-name: Finance Approver
+        roles: [ROLE_APPROVER]
+      admin:
+        password: "{noop}${RECON_ADMIN_PASSWORD:admin}"
+        display-name: Recon Administrator
+        roles: [ROLE_ADMIN, ROLE_OPERATOR, ROLE_APPROVER]

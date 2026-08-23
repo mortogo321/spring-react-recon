@@ -1,0 +1,55 @@
+# Docker profile: MySQL for the application's own schema, Oracle Free for the legacy feed.
+# Every value is an environment variable with a compose-matching default, so the same image runs
+# against a managed database by overriding the environment and nothing else.
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:recon}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&rewriteBatchedStatements=true&connectionTimeZone=UTC
+    username: ${MYSQL_USER:recon}
+    password: ${MYSQL_PASSWORD:recon}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: recon-mysql
+      maximum-pool-size: ${MYSQL_POOL_SIZE:16}
+
+  flyway:
+    enabled: true
+    # Flyway owns every table in this schema, the Spring Batch metadata included (V2), so there is
+    # one migration history for the whole database rather than two mechanisms racing on startup.
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  sql:
+    init:
+      mode: never          # Flyway is the only thing that touches this schema
+
+recon:
+  legacy:
+    datasource:
+      url: jdbc:oracle:thin:@//${ORACLE_HOST:oracle}:${ORACLE_PORT:1521}/${ORACLE_SERVICE:FREEPDB1}
+      username: ${ORACLE_USER:recon_ro}
+      password: ${ORACLE_PASSWORD:recon_ro}
+      driver-class-name: oracle.jdbc.OracleDriver
+      schema: ${ORACLE_SCHEMA:RECON_LEGACY}
+      maximum-pool-size: ${ORACLE_POOL_SIZE:8}
+      connection-timeout: 10s
+      fetch-size: 1000
+      init-scripts: []     # the legacy schema is seeded by the container's own init scripts
+
+management:
+  endpoint:
+    health:
+      probes:
+        add-additional-paths: true   # /livez and /readyz for the container probes
+
+logging:
+  level:
+    org.springframework.batch: INFO
+    io.github.mortogo321.recon: INFO

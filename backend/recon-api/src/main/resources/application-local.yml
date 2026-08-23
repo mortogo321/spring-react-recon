@@ -1,0 +1,66 @@
+# Local profile: the whole system on a laptop with no containers at all.
+#
+# Two in-memory H2 databases stand in for the two real ones. The legacy side runs in Oracle
+# compatibility mode against the same DDL and the same MyBatis mappers that a real Oracle gets, so
+# the SQL under test is the SQL that ships - the mappers are written to stay inside the dialect
+# subset both understand, and anything Oracle-only would be isolated behind a <databaseId> variant.
+#
+#   ./gradlew :backend:recon-api:bootRun --args='--spring.profiles.active=local'
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:recon;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      pool-name: recon-h2
+
+  # Flyway's migrations are MySQL DDL (InnoDB, utf8mb4 collations) and are not portable to H2 by
+  # design - they are the production schema, not a lowest common denominator. Locally Hibernate
+  # derives the same tables from the entities instead, which also means a drifting entity fails
+  # here before it reaches a migration review.
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    # Without this, Boot runs the init scripts before Hibernate has created any tables and the
+    # seed data fails on a missing ledger_entry.
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  sql:
+    init:
+      mode: always
+      # Spring Batch's metadata schema: Boot's own initializer backs off entirely because this
+      # application declares @EnableBatchProcessing, so the tables are created here.
+      schema-locations: classpath:db/h2/batch-schema-h2.sql
+      data-locations: classpath:db/h2/demo-ledger.sql
+
+recon:
+  legacy:
+    datasource:
+      url: jdbc:h2:mem:legacy;MODE=Oracle;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: ""
+      maximum-pool-size: 8
+      fetch-size: 1000
+      # H2 has no SET TRANSACTION READ ONLY. The Hikari pool is still read-only, which is the
+      # guarantee that matters; only Oracle gets the statement-level belt as well.
+      enforce-read-only: false
+      # Only ever populated locally: against a real Oracle we have read-only access and own no DDL.
+      init-scripts:
+        - classpath:db/legacy/oracle-schema.sql
+        - classpath:db/legacy/oracle-demo-data.sql
+
+logging:
+  level:
+    # Enough to watch a run happen without drowning in it. Add
+    # `--logging.level.org.springframework.jdbc.core=TRACE` to see the SQL.
+    org.springframework.batch: INFO
+    io.github.mortogo321.recon.batch: DEBUG
+    io.github.mortogo321.recon.legacy.mapper: DEBUG

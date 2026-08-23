@@ -1,0 +1,115 @@
+# Full stack: the legacy Oracle feed, the application's own MySQL, the API that reconciles one
+# against the other, and the console that works the breaks.
+#
+#   docker compose up --build          # first run pulls Oracle Free and takes a few minutes
+#   docker compose logs -f api
+#   curl -s localhost:8080/actuator/health/readiness
+#   open http://localhost:5173         # the console
+#
+# Everything is env-overridable with a working default, so `up` needs no .env file. Copy
+# .env.example to .env to change credentials or ports.
+
+name: spring-react-recon
+
+services:
+  mysql:
+    image: mysql:9
+    command:
+      # utf8mb4 end to end, and a buffer pool sized for the batch writes rather than the 128M default.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=512M
+      - --max-connections=200
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-recon}
+      MYSQL_USER: ${MYSQL_USER:-recon}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-recon}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  oracle:
+    # Oracle Free rather than XE: current, and published for both amd64 and arm64.
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-oracle}
+      # Consumed by the init script below, which creates the read-only account the API uses.
+      ORACLE_APP_USER: ${ORACLE_APP_USER:-recon_ro}
+      ORACLE_APP_PASSWORD: ${ORACLE_APP_PASSWORD:-recon_ro}
+    ports:
+      - "${ORACLE_PORT:-1521}:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      # The init hook runs 01-init.sh, which @-includes the two files below. One copy of the legacy
+      # DDL and demo feed serves both this container and the local H2 profile.
+      - ./docker/oracle/01-init.sh:/container-entrypoint-initdb.d/01-init.sh:ro
+      - ./backend/recon-api/src/main/resources/db/legacy/oracle-schema.sql:/legacy-sql/oracle-schema.sql:ro
+      - ./backend/recon-api/src/main/resources/db/legacy/oracle-demo-data.sql:/legacy-sql/oracle-demo-data.sql:ro
+    healthcheck:
+      # The image's own probe: it reports healthy only once the init scripts have finished, which is
+      # what makes `depends_on: service_healthy` below a real gate rather than a sleep.
+      test: ["CMD", "healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+      oracle:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-recon}
+      MYSQL_USER: ${MYSQL_USER:-recon}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-recon}
+      ORACLE_HOST: oracle
+      ORACLE_PORT: 1521
+      ORACLE_SERVICE: ${ORACLE_SERVICE:-FREEPDB1}
+      # The read-only account created by docker/oracle/01-init.sql, not the schema owner.
+      ORACLE_USER: ${ORACLE_APP_USER:-recon_ro}
+      ORACLE_PASSWORD: ${ORACLE_APP_PASSWORD:-recon_ro}
+      ORACLE_SCHEMA: RECON_LEGACY
+      # Demo console credentials. Overriding these is the whole reason they are not in the image.
+      RECON_OPERATOR_PASSWORD: ${RECON_OPERATOR_PASSWORD:-operator}
+      RECON_APPROVER_PASSWORD: ${RECON_APPROVER_PASSWORD:-approver}
+      RECON_ADMIN_PASSWORD: ${RECON_ADMIN_PASSWORD:-admin}
+      # Uncomment for JSON logs on stdout, which is what a log shipper wants:
+      # LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+    ports:
+      - "${API_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    depends_on:
+      # Only on the container starting, not on it being healthy: nginx serving the console while
+      # the API finishes warming up is the correct behaviour — the login screen renders and the
+      # first request retries. Gating the UI on the API means a blank page for two minutes.
+      api:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-5173}:8080"
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  oracle-data:
