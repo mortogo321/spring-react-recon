@@ -5,7 +5,7 @@ plugins {
 // The domain module is deliberately framework-free: no Spring, no JPA, no MyBatis.
 // ArchUnit (in :backend:recon-api) fails the build if that ever regresses.
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:6.0.3"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
