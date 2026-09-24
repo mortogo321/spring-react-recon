@@ -5,7 +5,7 @@
 # auth behaves identically in development and in the deployment.
 
 # ---------------------------------------------------------------- build
-FROM oven/bun:1.4-alpine AS build
+FROM oven/bun:1.4.2-alpine AS build
 WORKDIR /app
 
 # Manifest and lockfile first: dependencies are the slow half and change far less often than source.
