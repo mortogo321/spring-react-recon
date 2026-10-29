@@ -1,11 +1,11 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.24
 #
 # The console: built with bun, served by nginx, which also proxies /api to the API container so the
 # browser sees one origin. That is the same arrangement as the Vite dev proxy, which is the point —
 # auth behaves identically in development and in the deployment.
 
 # ---------------------------------------------------------------- build
-FROM oven/bun:1.4.2-alpine AS build
+FROM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 
 # Manifest and lockfile first: dependencies are the slow half and change far less often than source.
@@ -17,7 +17,7 @@ COPY frontend/ ./
 RUN bun run build
 
 # ---------------------------------------------------------------- runtime
-FROM nginx:1.29-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html

@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.24
 #
 # Two stages: build the boot jar, then run it on a JRE with nothing else in the image.
 #

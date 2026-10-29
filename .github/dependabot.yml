@@ -14,14 +14,23 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     labels: [dependencies]
+  # The Dockerfiles live under docker/; pointing this at / made every weekly run fail with
+  # "No Dockerfiles nor Kubernetes YAML found in /".
   - package-ecosystem: docker
-    directory: /
+    directory: /docker
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
     labels: [dependencies]
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+  - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
