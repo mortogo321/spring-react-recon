@@ -19,6 +19,10 @@ RUN bun run build
 # ---------------------------------------------------------------- runtime
 FROM nginx:1.31-alpine AS runtime
 
+# The nginx image lags Alpine's package fixes by days to weeks; upgrading the OS packages at build
+# time keeps the Trivy image scan in CI clean (brotli-libs and curl were the first to trip it).
+RUN apk upgrade --no-cache
+
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
