@@ -8,7 +8,7 @@
 # layers, and only the last one — a few hundred kilobytes — changes on a normal deploy.
 
 # ---------------------------------------------------------------- build
-FROM eclipse-temurin:26-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /src
 
 # The wrapper, the build scripts and the version catalog first, on their own: these change rarely,
@@ -26,13 +26,13 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew --no-daemon :backend:recon-api:bootJar -x test
 
 # ---------------------------------------------------------------- layer split
-FROM eclipse-temurin:26-jre AS layers
+FROM eclipse-temurin:25-jre AS layers
 WORKDIR /layers
 COPY --from=build /src/backend/recon-api/build/libs/recon-api.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --launcher --destination extracted
 
 # ---------------------------------------------------------------- runtime
-FROM eclipse-temurin:26-jre AS runtime
+FROM eclipse-temurin:25-jre AS runtime
 
 # curl for the healthcheck below; nothing else is added to the base image.
 RUN apt-get update \

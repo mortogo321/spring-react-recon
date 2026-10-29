@@ -8,13 +8,13 @@ group = "io.github.mortogo321.recon"
 version = "0.1.0"
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(26) }
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
     withSourcesJar()
 }
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release = 26
+    options.release = 25
     // -parameters keeps constructor parameter names for Spring / Jackson binding on records.
     options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all,-serial,-processing,-this-escape"))
 }

@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  JAVA_VERSION: '26'
+  JAVA_VERSION: '25'
   BUN_VERSION: '1.4.4'
 
 jobs:

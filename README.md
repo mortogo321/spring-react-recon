@@ -232,7 +232,7 @@ none of it is reachable.
 
 ## Notes on the stack
 
-Java 26 on Spring Boot 4 with Spring Batch 6, MyBatis for the legacy side, JPA and Flyway for the
+Java 25 on Spring Boot 4 with Spring Batch 6, MyBatis for the legacy side, JPA and Flyway for the
 owned side, and virtual threads enabled — both the HTTP threads and the batch workers spend their
 time blocked on two databases, which is the workload virtual threads exist for and removes the need
 to guess a pool size. The console is React with MUI and Redux Toolkit, built and tested with bun.
