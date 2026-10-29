@@ -1,9 +1,9 @@
-# Three jobs, deliberately separate.
+# Five jobs, deliberately separate.
 #
 # `backend` and `frontend` are pure unit/integration work and have nothing to say to each other, so
 # they run at the same time. `e2e` needs both halves built and is the slowest, so it starts the API
 # as its own step: a boot failure then shows up as a red step with the API's log next to it rather
-# than as six identical Playwright timeouts.
+# than as six identical Playwright timeouts. `image-scan` builds each shipped image and scans it.
 name: CI
 
 on:
@@ -176,3 +176,44 @@ jobs:
             frontend/playwright-report
             frontend/test-results
           retention-days: 7
+
+  # Builds each image the repo ships (compose pulls mysql and oracle as-is, so those are not ours to
+  # scan) and fails on fixable CRITICAL/HIGH findings. Unfixed ones are ignored: nothing can be done
+  # about them here.
+  image-scan:
+    name: Image scan — ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: docker/api.Dockerfile
+          - image: web
+            dockerfile: docker/web.Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: spring-react-recon-${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: spring-react-recon-${{ matrix.image }}:ci
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
