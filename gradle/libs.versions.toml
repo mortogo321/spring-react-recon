@@ -11,7 +11,7 @@ mysql                = "26.10.0"   # ahead of Boot-managed 9.7.0
 flyway               = "13.11.1"   # ahead of Boot-managed 12.4.0
 archunit             = "1.5.1"
 testcontainers       = "2.0.5"   # not managed by the Boot 4 BOM, so pinned here
-spotless             = "8.10.4"
+spotless             = "8.11.0"
 versionsPlugin       = "0.66.0"
 
 [libraries]
